@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sagra Cloud - Tablet & Mobile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        [v-cloak] { display: none; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 pb-20 lg:pb-0">
+
+    <div id="app" v-cloak>
+        
+        <!-- SCHERMATA DI LOGIN -->
+        <div v-if="!isAuthenticated" class="min-h-screen flex items-center justify-center p-4 bg-slate-900">
+            <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center">
+                <div class="text-indigo-600 text-5xl mb-4"><i class="fa-solid fa-mobile-screen-button"></i></div>
+                <h1 class="text-2xl font-bold text-slate-900 mb-1">Sagra Cloud</h1>
+                <p class="text-slate-500 mb-6 text-sm">Inserisci il PIN per accedere</p>
+                
+                <input 
+                    type="password" 
+                    v-model="pinInput" 
+                    @keyup.enter="handleLogin" 
+                    inputmode="numeric" 
+                    pattern="[0-9]*"
+                    maxlength="5"
+                    class="w-full border border-slate-300 rounded-2xl px-4 py-4 mb-4 text-center text-3xl tracking-[0.3em] focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition" 
+                    placeholder="•••••">
+                
+                <button @click="handleLogin" class="w-full bg-indigo-600 text-white font-bold rounded-2xl px-4 py-4 hover:bg-indigo-700 active:scale-95 transition shadow-sm text-lg">Accedi</button>
+                <p v-if="loginError" class="text-red-500 text-sm mt-4 font-medium"><i class="fa-solid fa-triangle-exclamation mr-1"></i> PIN errato, riprova.</p>
+            </div>
+        </div>
+
+        <!-- APPLICAZIONE REALE -->
+        <div v-else class="min-h-screen flex flex-col">
+            <header class="bg-white border-b border-slate-200 px-4 py-3 flex justify-between items-center sticky top-0 z-40 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <button v-if="currentView !== 'dashboard'" @click="currentView = 'dashboard'" class="bg-slate-100 text-slate-700 w-10 h-10 rounded-xl flex items-center justify-center active:bg-slate-200 transition"><i class="fa-solid fa-chevron-left"></i></button>
+                    <div v-else class="bg-indigo-100 text-indigo-600 w-10 h-10 flex items-center justify-center rounded-xl"><i class="fa-solid fa-fire-burner"></i></div>
+                    <div>
+                        <h1 class="font-bold text-md leading-tight text-slate-800">Sagra Cloud</h1>
+                        <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">{{ viewTitles[currentView] }}</p>
+                    </div>
+                </div>
+                <button @click="logout" class="text-slate-400 hover:text-red-600 p-2 active:scale-95 transition"><i class="fa-solid fa-arrow-right-from-bracket text-lg"></i></button>
+            </header>
+
+            <main class="flex-1 p-4 max-w-7xl mx-auto w-full">
+
+                <!-- TOAST DI NOTIFICA -->
+                <div v-if="toastMsg" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white px-4 py-2 rounded-full shadow-lg font-bold text-sm flex items-center gap-2 animate-bounce">
+                    <i class="fa-solid fa-circle-check"></i> {{ toastMsg }}
+                </div>
+
+                <!-- PANNELLO PRINCIPALE (DASHBOARD) -->
+                <div v-if="currentView === 'dashboard'" class="space-y-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Ordini Oggi</p>
+                            <p class="text-2xl font-black text-slate-800">{{ ordiniDiOggi.length }}</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Incasso Oggi</p>
+                            <p class="text-2xl font-black text-emerald-600">€ {{ incassoTotaleOggi.toFixed(2) }}</p>
+                        </div>
+                        <div class="bg-amber-50 p-4 rounded-2xl border border-amber-200">
+                            <p class="text-amber-600/70 text-[10px] font-bold uppercase tracking-wider mb-1">In Cucina</p>
+                            <p class="text-2xl font-black text-amber-600">{{ comandeSoloCucina.length }}</p>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-200">
+                            <p class="text-blue-600/70 text-[10px] font-bold uppercase tracking-wider mb-1">Al Bar (Bere)</p>
+                            <p class="text-2xl font-black text-blue-600">{{ comandeSoloBere.length }}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 ml-1">Azioni Rapide</h2>
+                        <div class="grid grid-cols-1 gap-3">
+                            <button @click="currentView = 'nuovo-ordine'" class="bg-indigo-600 p-4 rounded-2xl shadow-md active:scale-[0.98] transition flex items-center gap-4 text-left">
+                                <div class="bg-white/20 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl"><i class="fa-solid fa-plus"></i></div>
+                                <div>
+                                    <h3 class="font-bold text-lg text-white">Prendi Ordine</h3>
+                                    <p class="text-xs text-indigo-200">Apri un nuovo tavolo</p>
+                                </div>
+                            </button>
+                            
+                            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                                <button @click="currentView = 'cucina'" class="bg-white p-4 rounded-2xl border border-slate-200 active:bg-slate-50 transition text-center relative shadow-sm">
+                                    <span v-if="comandeSoloCucina.length > 0" class="absolute -top-2 -right-2 bg-amber-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{{ comandeSoloCucina.length }}</span>
+                                    <div class="text-amber-500 text-2xl mb-1"><i class="fa-solid fa-utensils"></i></div>
+                                    <h3 class="font-bold text-sm text-slate-800">Schermo Cucina</h3>
+                                </button>
+                                <button @click="currentView = 'ordinazioni-bere'" class="bg-white p-4 rounded-2xl border border-slate-200 active:bg-slate-50 transition text-center relative shadow-sm">
+                                    <span v-if="comandeSoloBere.length > 0" class="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{{ comandeSoloBere.length }}</span>
+                                    <div class="text-blue-500 text-2xl mb-1"><i class="fa-solid fa-glass-water"></i></div>
+                                    <h3 class="font-bold text-sm text-slate-800">Schermo Bere</h3>
+                                </button>
+                                <button @click="currentView = 'cassa'" class="bg-white p-4 rounded-2xl border border-slate-200 active:bg-slate-50 transition text-center relative shadow-sm">
+                                    <span v-if="ordiniDaPagare.length > 0" class="absolute -top-2 -right-2 bg-slate-700 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">{{ ordiniDaPagare.length }}</span>
+                                    <div class="text-slate-700 text-2xl mb-1"><i class="fa-solid fa-cash-register"></i></div>
+                                    <h3 class="font-bold text-sm text-slate-800">Punto Cassa</h3>
+                                </button>
+                                <button @click="currentView = 'storico'" class="bg-white p-4 rounded-2xl border border-slate-200 active:bg-slate-50 transition text-center shadow-sm">
+                                    <div class="text-slate-400 text-2xl mb-1"><i class="fa-solid fa-calendar-days"></i></div>
+                                    <h3 class="font-bold text-sm text-slate-800">Storico Ordini</h3>
+                                </button>
+                                <button @click="currentView = 'menu-manager'" class="bg-white p-4 rounded-2xl border border-slate-200 active:bg-slate-50 transition text-center shadow-sm">
+                                    <div class="text-emerald-500 text-2xl mb-1"><i class="fa-solid fa-list-ul"></i></div>
+                                    <h3 class="font-bold text-sm text-slate-800">Configura Listino</h3>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: CREA NUOVO ORDINE -->
+                <div v-if="currentView === 'nuovo-ordine'" class="space-y-4 max-w-xl mx-auto">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex gap-3">
+                        <div class="w-1/3">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tavolo</label>
+                            <input type="number" v-model="nuovoOrdine.tavolo" inputmode="numeric" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 font-black text-xl text-center focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="N°">
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Note ordine</label>
+                            <input type="text" v-model="nuovoOrdine.note" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Varianti o intolleranze...">
+                        </div>
+                    </div>
+
+                    <div class="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex justify-between items-center shadow-sm">
+                        <div>
+                            <p class="font-bold text-indigo-900 text-base">Seleziona Piatti</p>
+                            <p class="text-xs text-indigo-600/70">{{ nuovoOrdine.carrello.length }} varianti inserite</p>
+                        </div>
+                        <button @click="apriModalMenu" class="bg-indigo-600 text-white px-5 py-3 rounded-xl text-sm font-bold shadow-md active:scale-95 transition flex items-center gap-2"><i class="fa-solid fa-book-open"></i> Apri Menu</button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[45vh] min-h-[320px]">
+                        <div class="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
+                            <span class="font-bold text-sm text-slate-600">Elementi nel Carrello</span>
+                            <span class="font-black text-indigo-600 text-lg">€ {{ totaleCarrello.toFixed(2) }}</span>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2 space-y-2 bg-white">
+                            <div v-if="nuovoOrdine.carrello.length === 0" class="h-full flex flex-col items-center justify-center text-slate-300">
+                                <i class="fa-solid fa-basket-shopping text-4xl mb-2"></i>
+                                <p class="text-xs font-bold">Nessun piatto selezionato</p>
+                            </div>
+                            <div v-for="item in nuovoOrdine.carrello" :key="item.id" class="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="flex-1 leading-tight pr-2">
+                                    <p class="font-bold text-sm text-slate-800">{{ item.nome }}</p>
+                                    <p class="text-[10px] text-slate-500 font-semibold">€ {{ item.prezzo.toFixed(2) }} cad.</p>
+                                </div>
+                                <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-xl p-1">
+                                    <button @click="rimuoviDalCarrello(item)" class="w-8 h-8 rounded-lg text-slate-500 active:bg-slate-100 flex items-center justify-center transition"><i class="fa-solid fa-minus text-xs"></i></button>
+                                    <span class="font-black text-sm w-4 text-center">{{ item.qta }}</span>
+                                    <button @click="aggiungiAlCarrello(item)" class="w-8 h-8 rounded-lg text-indigo-600 active:bg-indigo-50 flex items-center justify-center transition"><i class="fa-solid fa-plus text-xs"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-white border-t border-slate-200">
+                            <button @click="inviaOrdine" class="w-full bg-emerald-500 text-white font-bold py-4 rounded-xl shadow-md active:bg-emerald-600 active:scale-95 transition text-lg"><i class="fa-solid fa-paper-plane mr-2"></i>Invia Comanda</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL SELEZIONE MENU -->
+                <div v-if="isMenuModalOpen" class="fixed inset-0 bg-slate-900/60 z-50 flex items-end sm:items-center justify-center backdrop-blur-sm p-0 sm:p-4">
+                    <div class="bg-white w-full h-[85vh] sm:max-w-2xl sm:h-[75vh] rounded-t-3xl sm:rounded-3xl flex flex-col overflow-hidden shadow-2xl hash-modal animate-[slideUp_0.2s_ease-out]">
+                        <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-white z-10 shadow-sm">
+                            <div>
+                                <h3 class="font-black text-lg text-slate-800">Scegli dal Listino</h3>
+                                <p class="text-xs text-slate-400">Tocca i piatti per aggiungerli alla comanda</p>
+                            </div>
+                            <button @click="isMenuModalOpen = false" class="bg-slate-100 text-slate-500 w-9 h-9 rounded-full flex items-center justify-center active:bg-slate-200"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        
+                        <div v-if="Object.keys(menu).length === 0" class="flex-1 flex flex-col items-center justify-center text-slate-400 p-6">
+                            <i class="fa-solid fa-folder-open text-4xl mb-2"></i>
+                            <p class="text-sm font-bold">Nessuna categoria creata nel listino!</p>
+                        </div>
+
+                        <div v-else class="flex flex-1 overflow-hidden">
+                            <div class="w-[38%] bg-slate-50 border-r border-slate-200 overflow-y-auto p-2 space-y-1.5">
+                                <button v-for="(piatti, cat) in menu" @click="modalCategoriaAttiva = cat" :key="cat"
+                                    :class="modalCategoriaAttiva === cat ? 'bg-indigo-600 text-white font-bold shadow-md' : 'text-slate-600 font-semibold hover:bg-slate-200/60'"
+                                    class="w-full text-left px-4 py-3 text-xs uppercase tracking-wider rounded-full transition duration-150 truncate">
+                                    <i class="fa-solid fa-folder text-[10px] mr-1 opacity-70"></i> {{ cat }}
+                                </button>
+                            </div>
+                            
+                            <div class="w-[62%] p-3 overflow-y-auto space-y-2 bg-slate-100/40 relative">
+                                <div v-if="!menu[modalCategoriaAttiva] || menu[modalCategoriaAttiva].length === 0" class="text-center text-slate-400 pt-10 text-xs">
+                                    Nessun piatto in questa categoria.
+                                </div>
+                                <div v-for="piatto in menu[modalCategoriaAttiva]" :key="piatto.id" class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-col shadow-sm active:border-indigo-400 transition relative cursor-pointer" @click="aggiungiAlCarrello(piatto)">
+                                    <p class="font-bold text-sm text-slate-800 leading-tight mb-1 pr-6">{{ piatto.nome }}</p>
+                                    <div class="flex justify-between items-end mt-2">
+                                        <p class="text-indigo-600 font-black text-sm">€ {{ piatto.prezzo.toFixed(2) }}</p>
+                                        <div class="bg-indigo-50 text-indigo-600 w-7 h-7 rounded-full flex items-center justify-center font-bold pointer-events-none"><i class="fa-solid fa-plus text-xs"></i></div>
+                                    </div>
+                                    <span v-if="quantitaNelCarrello(piatto.id) > 0" class="absolute top-2 right-2 bg-indigo-600 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
+                                        {{ quantitaNelCarrello(piatto.id) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 border-t border-slate-200 bg-white flex justify-between items-center shadow-[0_-8px_20px_rgba(0,0,0,0.04)]">
+                            <div>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Totale Provvisorio</p>
+                                <span class="font-black text-xl text-indigo-600">€ {{ totaleCarrello.toFixed(2) }}</span>
+                            </div>
+                            <button @click="isMenuModalOpen = false" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-xl font-bold shadow-md active:scale-95 transition text-sm">Conferma <i class="fa-solid fa-check ml-1"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: STORICO ARCHIVIO COMANDATI -->
+                <div v-if="currentView === 'storico'" class="space-y-4 max-w-xl mx-auto">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Seleziona Giorno Archivio</label>
+                        <input type="date" v-model="filtroDataStorico" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+
+                    <div v-if="ordiniStoricoFiltrati.length === 0" class="text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-calendar-xmark text-4xl mb-3"></i>
+                        <p class="font-bold">Nessuna comanda registrata in questa data</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3">
+                        <div v-for="ordine in ordiniStoricoFiltrati" :key="ordine.id" class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                            <div class="flex justify-between items-start border-b border-slate-200 pb-2 mb-2">
+                                <div>
+                                    <h3 class="font-black text-lg text-slate-800">Tavolo {{ ordine.tavolo }} <span class="text-xs font-normal text-slate-400 ml-1">#{{ ordine.id }}</span></h3>
+                                    <p class="text-xs text-slate-400 font-semibold"><i class="fa-regular fa-clock mr-1"></i>{{ ordine.orario }}</p>
+                                </div>
+                                <span :class="ordine.pagato ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'" class="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">
+                                    {{ ordine.pagato ? 'Saldato' : 'Da Incassare' }}
+                                </span>
+                            </div>
+                            <div class="space-y-1 mb-3">
+                                <p v-for="p in ordine.piatti" class="text-xs text-slate-600 flex justify-between">
+                                    <span>{{ p.qta }}x {{ p.nome }}</span>
+                                    <span class="font-semibold text-slate-400">€ {{ (p.prezzo * p.qta).toFixed(2) }}</span>
+                                </p>
+                            </div>
+                            <div class="flex justify-between items-center pt-2 border-t border-dashed border-slate-200">
+                                <span class="text-xs font-bold text-slate-400 uppercase">Totale Conto</span>
+                                <span class="font-black text-slate-800">€ {{ ordine.totale.toFixed(2) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: MONITOR CUCINA (ESCLUDE LE BEVANDE) -->
+                <div v-if="currentView === 'cucina'" class="space-y-4">
+                    <div v-if="comandeSoloCucina.length === 0" class="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 shadow-sm max-w-md mx-auto">
+                        <i class="fa-solid fa-mug-hot text-5xl text-emerald-400 mb-3 block"></i>
+                        <p class="text-lg font-black text-slate-700">Tutti i primi e secondi sono pronti!</p>
+                        <p class="text-xs mt-1 text-slate-400">In attesa di nuove comande culinarie dai tavoli.</p>
+                    </div>
+                    
+                    <div class="flex overflow-x-auto gap-4 pb-2">
+                        <div v-for="ordine in comandeSoloCucina"
+     :key="ordine.id"
+     class="min-w-[300px] max-w-[300px] bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between">
+                            <div>
+                                <div class="bg-amber-100/60 px-4 py-3 border-b border-amber-200 flex justify-between items-center">
+                                    <span class="font-black text-xl text-amber-900">Tavolo {{ ordine.tavolo }}</span>
+                                    <span class="text-xs font-bold bg-white text-amber-800 px-2 py-0.5 rounded shadow-sm">{{ ordine.orario }}</span>
+                                </div>
+                                <div class="p-4 space-y-2.5">
+                                    <!-- template condizionale: stampa solo se NON è bere -->
+                                    <template v-for="piatto in ordine.piatti" :key="piatto.id">
+                                        <div v-if="piatto.categoria !== 'Bere' && piatto.categoria !== 'Bevande'" class="flex items-start gap-2.5 border-b border-slate-100 pb-2">
+                                            <span class="bg-amber-500 text-white font-black text-sm w-7 h-7 rounded-lg flex items-center justify-center shrink-0">{{ piatto.qta }}</span>
+                                            <span class="text-slate-800 font-bold text-base leading-tight mt-0.5">{{ piatto.nome }}</span>
+                                        </div>
+                                    </template>
+                                    <div v-if="ordine.note" class="mt-2 bg-red-50 p-2.5 rounded-xl text-xs font-bold text-red-700 border border-red-100"><i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ ordine.note }}</div>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-slate-50 border-t border-slate-200">
+                                <button @click="evadiCucina(ordine)" class="w-full bg-amber-500 text-white font-black py-3 rounded-xl active:bg-amber-600 transition shadow-sm text-md">Pronto Cucina</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: MONITOR BEVANDE (MOSTRA SOLO LE BEVANDE) -->
+                <div v-if="currentView === 'ordinazioni-bere'" class="space-y-4">
+                    <div v-if="comandeSoloBere.length === 0" class="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 shadow-sm max-w-md mx-auto">
+                        <i class="fa-solid fa-glass-water text-5xl text-blue-400 mb-3 block"></i>
+                        <p class="text-lg font-black text-slate-700">Tutte le bevande sono pronte!</p>
+                        <p class="text-xs mt-1 text-slate-400">Nessun bicchiere o bottiglia in attesa al bar.</p>
+                    </div>
+                    
+                    <div class="flex overflow-x-auto gap-4 pb-2">
+                        <div v-for="ordine in comandeSoloBere" :key="ordine.id" class="bg-white border border-blue-200 rounded-2xl shadow-sm overflow-hidden flex flex-col justify-between h-fit">
+                            <div>
+                                <div class="bg-blue-100/60 px-4 py-3 border-b border-blue-200 flex justify-between items-center">
+                                    <span class="font-black text-xl text-blue-900">Tavolo {{ ordine.tavolo }}</span>
+                                    <span class="text-xs font-bold bg-white text-blue-800 px-2 py-0.5 rounded shadow-sm">{{ ordine.orario }}</span>
+                                </div>
+                                <div class="p-4 space-y-2.5">
+                                    <!-- template condizionale: stampa SOLO se è bere o bevande -->
+                                    <template v-for="piatto in ordine.piatti" :key="piatto.id">
+                                        <div v-if="piatto.categoria === 'Bere' || piatto.categoria === 'Bevande'" class="flex items-start gap-2.5 border-b border-slate-100 pb-2">
+                                            <span class="bg-blue-500 text-white font-black text-sm w-7 h-7 rounded-lg flex items-center justify-center shrink-0">{{ piatto.qta }}</span>
+                                            <span class="text-slate-800 font-bold text-base leading-tight mt-0.5">{{ piatto.nome }}</span>
+                                        </div>
+                                    </template>
+                                    <div v-if="ordine.note" class="mt-2 bg-red-50 p-2.5 rounded-xl text-xs font-bold text-red-700 border border-red-100"><i class="fa-solid fa-triangle-exclamation mr-1"></i> {{ ordine.note }}</div>
+                                </div>
+                            </div>
+                            <div class="p-3 bg-slate-50 border-t border-slate-200">
+                                <button @click="evadiCucina(ordine)" class="w-full bg-blue-500 text-white font-black py-3 rounded-xl active:bg-blue-600 transition shadow-sm text-md">Pronto Bar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: PUNTO CASSA E INCASSI -->
+                <div v-if="currentView === 'cassa'" class="space-y-4">
+                    <div v-if="ordiniDaPagare.length === 0" class="bg-white border border-slate-200 rounded-3xl p-12 text-center text-slate-400 shadow-sm max-w-md mx-auto">
+                        <i class="fa-solid fa-coins text-5xl text-slate-300 mb-3 block"></i>
+                        <p class="text-lg font-black text-slate-700">Tutti i tavoli hanno saldato</p>
+                    </div>
+                    
+                    <div class="flex overflow-x-auto gap-4 pb-2">
+                        <div v-for="ordine in ordiniDaPagare" :key="ordine.id" class="bg-white border border-slate-200 rounded-2xl shadow-sm p-4 flex flex-col justify-between h-fit">
+                            <div>
+                                <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                                    <h3 class="font-black text-xl text-slate-800">Tavolo {{ ordine.tavolo }}</h3>
+                                    <span :class="ordine.cucinaCompletata ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'" class="text-[9px] font-bold px-2 py-0.5 rounded uppercase">
+                                        {{ ordine.cucinaCompletata ? 'Pronto' : 'In lavorazione' }}
+                                    </span>
+                                </div>
+                                <div class="space-y-1 text-xs mb-3">
+                                    <div v-for="p in ordine.piatti" :key="p.id" class="flex justify-between text-slate-600 font-medium">
+                                        <span>{{ p.qta }}x {{ p.nome }}</span>
+                                        <span>€ {{ (p.prezzo * p.qta).toFixed(2) }}</span>
+                                    </div>
+                                </div>
+                                <p v-if="ordine.note" class="text-[11px] bg-slate-50 p-2 rounded-lg text-slate-500 mb-2">Note: {{ ordine.note }}</p>
+                            </div>
+                            <div class="pt-3 border-t border-dashed border-slate-200 space-y-3">
+                                <div class="flex justify-between items-baseline">
+                                    <span class="font-bold text-slate-400 uppercase text-[10px]">Da pagare</span>
+                                    <span class="text-2xl font-black text-indigo-600">€ {{ ordine.totale.toFixed(2) }}</span>
+                                </div>
+                                <button @click="incassaConto(ordine)" class="w-full bg-slate-800 text-white font-bold py-3 rounded-xl active:bg-slate-900 transition text-sm shadow-sm flex items-center justify-center gap-2"><i class="fa-solid fa-cash-register text-xs"></i> Incassa</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- INTERFACCIA: CONFIGURAZIONE LISTINO -->
+                <div v-if="currentView === 'menu-manager'" class="space-y-5 max-w-2xl mx-auto">
+                    
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <h3 class="font-black text-sm text-slate-800"><i class="fa-solid fa-folder-plus text-indigo-500 mr-1"></i> Crea Nuova Categoria</h3>
+                        <div class="flex gap-2">
+                            <input type="text" v-model="nuovaCategoriaInput" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Es: Dolci, Bere, Primi Piatti...">
+                            <button @click="aggiungiCategoria" class="bg-indigo-600 text-white font-bold px-5 rounded-xl active:bg-indigo-700 transition shadow-sm text-sm">Crea</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                        <h3 class="font-black text-sm text-slate-800"><i class="fa-solid fa-circle-plus text-emerald-500 mr-1"></i> Aggiungi Piatto nel Listino</h3>
+                        <input type="text" v-model="nuovoPiattoListino.nome" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Nome piatto (es. Birra alla spina)">
+                        <div class="flex gap-3">
+                            <div class="w-1/3">
+                                <input type="number" step="0.5" v-model="nuovoPiattoListino.prezzo" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Prezzo €">
+                            </div>
+                            <div class="flex-1">
+                                <select v-model="nuovoPiattoListino.categoria" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white">
+                                    <option v-for="cat in elencoCategorie" :value="cat">{{ cat }}</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button @click="aggiungiAAListino" class="w-full bg-emerald-500 text-white font-bold py-3.5 rounded-xl active:bg-emerald-600 transition shadow-sm text-sm">Salva nel Listino</button>
+                    </div>
+
+                    <div v-for="(piatti, cat) in menu" :key="cat" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-2 mb-2">
+                            <h3 class="font-black text-slate-500 text-xs uppercase tracking-wider"><i class="fa-regular fa-folder-open mr-1"></i> {{ cat }}</h3>
+                            <button @click="rimuoviCategoria(cat)" class="text-red-400 hover:text-red-600 text-xs font-bold flex items-center gap-1 active:scale-95 transition">
+                                <i class="fa-solid fa-trash-can text-[10px]"></i> Elimina Categoria
+                            </button>
+                        </div>
+                        <div class="space-y-2.5">
+                            <div v-if="piatti.length === 0" class="text-slate-400 text-xs italic py-2">
+                                Categoria vuota. Aggiungi un piatto hier sopra selezionando "{{ cat }}".
+                            </div>
+                            <div v-for="piatto in piatti" :key="piatto.id" class="flex justify-between items-center py-1">
+                                <span class="font-semibold text-sm text-slate-800">{{ piatto.nome }}</span>
+                                <div class="flex items-center gap-3">
+                                    <span class="text-sm font-black text-indigo-600">€ {{ piatto.prezzo.toFixed(2) }}</span>
+                                    <button @click="rimuoviDaListino(cat, piatto.id)" class="w-8 h-8 bg-red-50 text-red-500 rounded-lg flex items-center justify-center active:bg-red-100"><i class="fa-solid fa-minus text-xs"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <style>
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+    </style>
+
+    <script src="supabase.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

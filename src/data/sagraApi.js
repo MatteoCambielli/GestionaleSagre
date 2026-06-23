@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { demoStore } from './demoStore.js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
 export const supabaseClient = url && key ? createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null

@@ -32,3 +32,18 @@ L’area privata è disponibile solo all’indirizzo `/manager`. Non è collegat
 Al primo accesso usa **Password dimenticata?** con l’email amministratore per impostare la password personale. Il recupero clienti usa invece l’email proprietario verificata solo per inviare un magic link; l’accesso operativo resta esclusivamente codice attività + PIN.
 
 Le migrazioni in `supabase/migrations` sono già applicate al progetto configurato e costituiscono lo storico completo per riprodurre schema, RLS, licenze, limiti e hardening.
+
+## Deploy su Vercel
+
+1. Aggiungi le environment variables nelle impostazioni del progetto Vercel.
+2. Non caricare `.env.local` o altri file `.env` nel repository.
+3. Il routing SPA è gestito da `vercel.json`, che fa fallback a `index.html` per route come `/manager`, `/success` e `/cancel`.
+4. Dopo il deploy usa `/manager` per accedere all'area manager privata.
+
+Environment variables richieste:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`, opzionale e mantenuta per compatibilità con installazioni esistenti
+- `VITE_STRIPE_PUBLISHABLE_KEY`, solo se Stripe è usato nel frontend
+- `STRIPE_SECRET_KEY`, solo per funzioni/backend Stripe lato server e mai nel frontend

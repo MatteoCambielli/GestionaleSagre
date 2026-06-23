@@ -20,6 +20,11 @@ const number = (value) => new Intl.NumberFormat('it-IT').format(Number(value || 
 const date = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 const slugify = (value) => value.toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 const randomPin = () => String(crypto.getRandomValues(new Uint32Array(1))[0] % 900000 + 100000)
+const isRecoveryUrl = () => {
+  const search = new URLSearchParams(window.location.search)
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  return search.has('reset') || search.has('code') || search.get('type') === 'recovery' || hash.get('type') === 'recovery'
+}
 
 const emptyForm = () => ({
   client_name: '', contact_name: '', email: '', phone: '', client_notes: '', event_name: '', slug: '',
@@ -136,7 +141,33 @@ export default function ManagerApp() {
   const notify = useCallback((message, error = false) => { setToast({ message, error }); window.setTimeout(() => setToast(null), 3500) }, [])
   const load = useCallback(async () => { try { setPayload(await managerApi.load()) } catch (error) { notify(error.message, true) } }, [notify])
   const authenticate = useCallback(async () => { const admin = await managerApi.isAdmin(); if (!admin) return setAuth('denied'); setAuth('admin'); await load() }, [load])
-  useEffect(() => { (async () => { try { if (new URLSearchParams(window.location.search).has('reset')) { const session = await managerApi.session(); return setAuth(session ? 'reset' : 'login') } localStorage.removeItem('sagra-cloud-session-v2'); sessionStorage.removeItem('sagra-stats-unlocked'); await managerApi.signOut(); setAuth('login') } catch { setAuth('login') } })() }, [])
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        localStorage.removeItem('sagra-cloud-session-v2')
+        sessionStorage.removeItem('sagra-stats-unlocked')
+        const search = new URLSearchParams(window.location.search)
+        if (search.has('code')) await managerApi.exchangeCodeForSession(search.get('code'))
+        const session = await managerApi.session()
+        if (!active) return
+        if (isRecoveryUrl()) return setAuth(session ? 'reset' : 'login')
+        if (!session) return setAuth('login')
+        const admin = await managerApi.isAdmin()
+        if (!active) return
+        if (admin) { setAuth('admin'); await load(); return }
+        if (session.user?.is_anonymous) {
+          await managerApi.signOut()
+          if (active) setAuth('login')
+          return
+        }
+        setAuth('denied')
+      } catch {
+        if (active) setAuth('login')
+      }
+    })()
+    return () => { active = false }
+  }, [load])
   useEffect(() => { if (auth !== 'admin') return undefined; const timer = window.setInterval(load, 30_000); return () => window.clearInterval(timer) }, [auth, load])
   const open = async (item) => { try { setDetail(await managerApi.detail(item.id)) } catch (error) { notify(error.message, true) } }
   const action = async (itemOrId, name, value = null) => { const id = typeof itemOrId === 'string' ? itemOrId : itemOrId.id; if (!id) return notify('Seleziona un evento', true); if (['suspend', 'reset_sessions'].includes(name) && !window.confirm(`Confermi l’azione “${name}”?`)) return; try { await managerApi.action(id, name, value); await load(); if (detail) setDetail(await managerApi.detail(id)); notify('Licenza aggiornata') } catch (error) { notify(error.message, true) } }

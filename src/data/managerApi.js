@@ -17,6 +17,10 @@ export const managerApi = {
     if (error) throw error
     return data.session
   },
+  async exchangeCodeForSession(code) {
+    const { error } = await requireClient().auth.exchangeCodeForSession(code)
+    if (error) throw error
+  },
   async sendMagicLink(email) {
     const { error } = await requireClient().auth.signInWithOtp({
       email: email.trim().toLowerCase(),

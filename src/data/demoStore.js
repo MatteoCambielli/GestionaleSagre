@@ -20,6 +20,7 @@ function initialState() {
     ],
     products: starterProducts.map(([name, price, category]) => ({ id: crypto.randomUUID(), festival_id: festivalId, name, price, category, active: true })),
     orders: [],
+    upgradeRequests: [],
   }
 }
 
@@ -30,7 +31,7 @@ function read() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     return state
   }
-  try { return JSON.parse(stored) } catch { return initialState() }
+  try { const state = JSON.parse(stored); state.upgradeRequests ||= []; return state } catch { return initialState() }
 }
 
 function write(state) {
@@ -59,6 +60,19 @@ export const demoStore = {
   async verifyStatsPin(festivalId, pin) {
     return read().festivals.some((festival) => festival.id === festivalId && festival.stats_pin === pin)
   },
+  async requestOrderUpgrade(festivalId) {
+    const state = read()
+    let request = state.upgradeRequests.find((item) => item.festival_id === festivalId && item.status === 'pending')
+    if (!request) {
+      request = { id: crypto.randomUUID(), festival_id: festivalId, status: 'pending', current_plan: 'starter', suggested_plan: 'pro', suggested_additional_orders: 4500, requested_at: new Date().toISOString(), message: 'La richiesta comporta il passaggio al piano superiore e una variazione di prezzo.' }
+      state.upgradeRequests.push(request)
+      write(state)
+    }
+    return request
+  },
+  async getOrderUpgradeRequest(festivalId) {
+    return read().upgradeRequests.find((item) => item.festival_id === festivalId && item.status === 'pending') || null
+  },
   async load(festivalId) {
     const state = read()
     return {
@@ -80,8 +94,10 @@ export const demoStore = {
   },
   async createProduct(festivalId, product) {
     const state = read()
-    state.products.push({ id: crypto.randomUUID(), festival_id: festivalId, active: true, ...product })
+    const created = { id: crypto.randomUUID(), festival_id: festivalId, active: true, ...product }
+    state.products.push(created)
     write(state)
+    return created
   },
   async deleteProduct(id) {
     const state = read()

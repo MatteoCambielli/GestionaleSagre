@@ -3,9 +3,20 @@ import { demoStore } from './demoStore.js'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-const supabase = url && key ? createClient(url, key, {
+export const supabaseClient = url && key ? createClient(url, key, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 }) : null
+const supabase = supabaseClient
+const DEVICE_KEY = 'ordiva-device-id-v1'
+
+export function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_KEY)
+  if (!id) {
+    id = globalThis.crypto?.randomUUID?.() || `device-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    localStorage.setItem(DEVICE_KEY, id)
+  }
+  return id
+}
 
 const localDate = (value = new Date()) => {
   const year = value.getFullYear()
@@ -42,6 +53,14 @@ async function fetchAllOrders(buildQuery) {
 export const isDemoMode = !supabase
 
 export const sagraApi = supabase ? {
+  async signInAccount(email, password) {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
+    if (error) throw error
+    const { data, error: eventError } = await supabase.rpc('get_my_festivals')
+    if (eventError) throw eventError
+    if (!data?.length) throw new Error('Nessun evento associato a questo account')
+    return data[0]
+  },
   async linkOwnerEmail(email) {
     await ensureSession()
     const { error } = await supabase.auth.updateUser({ email: email.trim().toLowerCase() })
@@ -59,6 +78,7 @@ export const sagraApi = supabase ? {
     if (error) throw error
   },
   async getOwnedFestivals() {
+    await ensureSession()
     const { data, error } = await supabase.rpc('get_owned_festivals')
     if (error) throw error
     return data || []
@@ -124,6 +144,16 @@ export const sagraApi = supabase ? {
     if (error) throw error
     return data
   },
+  async requestOrderUpgrade(festivalId) {
+    const { data, error } = await supabase.rpc('request_order_upgrade', { p_festival_id: festivalId })
+    if (error) throw error
+    return data
+  },
+  async getOrderUpgradeRequest(festivalId) {
+    const { data, error } = await supabase.rpc('get_my_order_upgrade_request', { p_festival_id: festivalId })
+    if (error) throw error
+    return data
+  },
   async createCategory(festivalId, name) {
     const { error } = await supabase.from('categories').insert({ festival_id: festivalId, name })
     if (error) throw error
@@ -133,8 +163,14 @@ export const sagraApi = supabase ? {
     if (error) throw error
   },
   async createProduct(festivalId, product) {
-    const { error } = await supabase.from('products').insert({ festival_id: festivalId, ...product })
+    const { data, error } = await supabase.rpc('create_product', {
+      p_festival_id: festivalId,
+      p_name: product.name,
+      p_price: product.price,
+      p_category: product.category,
+    })
     if (error) throw error
+    return data
   },
   async deleteProduct(id) {
     const { error } = await supabase.from('products').update({ active: false }).eq('id', id)
@@ -146,9 +182,24 @@ export const sagraApi = supabase ? {
       p_table_number: order.table_number,
       p_notes: order.notes,
       p_items: order.items.map(({ product_id, quantity }) => ({ product_id, quantity })),
+      p_device_id: getDeviceId(),
     })
     if (error) throw error
     return data
+  },
+  async openSession(festivalId) {
+    const { data, error } = await supabase.rpc('register_device_session', {
+      p_festival_id: festivalId,
+      p_device_id: getDeviceId(),
+      p_device_name: `${navigator.platform || 'Browser'} · ${navigator.language || 'it'}`,
+      p_user_agent: navigator.userAgent,
+    })
+    if (error) throw error
+    return data
+  },
+  async closeSession(festivalId) {
+    const { error } = await supabase.rpc('release_device_session', { p_festival_id: festivalId, p_device_id: getDeviceId() })
+    if (error) throw error
   },
   async updateOrder(id, changes) {
     const status = changes.paid ? 'paid' : changes.kitchen_done ? 'kitchen_done' : changes.bar_done ? 'bar_done' : null
@@ -194,6 +245,9 @@ export const sagraApi = supabase ? {
     return [festival]
   },
   async resetFestivalPin() {},
+  async signInAccount() { return demoStore.loginFestival('sagra-demo', '12345') },
+  async openSession() { return { allowed: true, status: 'active', orders_used: 0, max_orders: 500, orders_remaining: 500, active_devices: 1, max_devices: 5 } },
+  async closeSession() {},
   async loadOrderHistory(festivalId, date, table = '', cursor = null, limit = 200) {
     const { orders } = await demoStore.load(festivalId)
     return orders

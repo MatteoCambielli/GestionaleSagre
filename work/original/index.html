@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sagra Cloud - Tablet & Mobile</title>
+    <title>Ordiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -25,7 +25,7 @@
         <div v-if="!isAuthenticated" class="min-h-screen flex items-center justify-center p-4 bg-slate-900">
             <div class="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm text-center">
                 <div class="text-indigo-600 text-5xl mb-4"><i class="fa-solid fa-mobile-screen-button"></i></div>
-                <h1 class="text-2xl font-bold text-slate-900 mb-1">Sagra Cloud</h1>
+                <h1 class="text-2xl font-bold text-slate-900 mb-1">Ordiva</h1>
                 <p class="text-slate-500 mb-6 text-sm">Inserisci il PIN per accedere</p>
                 
                 <input 
@@ -50,7 +50,7 @@
                     <button v-if="currentView !== 'dashboard'" @click="currentView = 'dashboard'" class="bg-slate-100 text-slate-700 w-10 h-10 rounded-xl flex items-center justify-center active:bg-slate-200 transition"><i class="fa-solid fa-chevron-left"></i></button>
                     <div v-else class="bg-indigo-100 text-indigo-600 w-10 h-10 flex items-center justify-center rounded-xl"><i class="fa-solid fa-fire-burner"></i></div>
                     <div>
-                        <h1 class="font-bold text-md leading-tight text-slate-800">Sagra Cloud</h1>
+                        <h1 class="font-bold text-md leading-tight text-slate-800">Ordiva</h1>
                         <p class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">{{ viewTitles[currentView] }}</p>
                     </div>
                 </div>

@@ -25,6 +25,19 @@ const isRecoveryUrl = () => {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
   return search.has('reset') || search.has('code') || search.get('type') === 'recovery' || hash.get('type') === 'recovery'
 }
+const authErrorMessage = (error, mode) => {
+  const message = error?.message || ''
+  const lower = message.toLowerCase()
+  if (lower.includes('supabase non è configurato')) return message
+  if (lower.includes('invalid login credentials')) return 'Email o password non corretti. Se non ricordi la password usa il recupero.'
+  if (lower.includes('email not confirmed')) return 'Email non confermata in Supabase Auth.'
+  if (lower.includes('rate limit') || lower.includes('for security purposes')) return 'Troppe richieste ravvicinate. Attendi qualche minuto e riprova.'
+  if (lower.includes('redirect') || lower.includes('not allowed')) return 'Redirect non autorizzato in Supabase. Aggiungi il dominio Vercel nei Redirect URLs.'
+  if (lower.includes('signup') || lower.includes('email provider')) return 'Provider email/password non attivo in Supabase Auth.'
+  return mode === 'forgot'
+    ? `Invio non riuscito: ${message || 'controlla configurazione Auth e redirect Supabase.'}`
+    : `Accesso non riuscito: ${message || 'controlla le credenziali e la configurazione Supabase.'}`
+}
 
 const emptyForm = () => ({
   client_name: '', contact_name: '', email: '', phone: '', client_notes: '', event_name: '', slug: '',
@@ -49,7 +62,7 @@ function ManagerLogin({ onAuthenticated }) {
     try {
       if (mode === 'forgot') { await managerApi.sendPasswordRecovery(email); setSent(true) }
       else { await managerApi.signIn(email, password); await onAuthenticated() }
-    } catch { setError(mode === 'forgot' ? 'Invio non riuscito. Riprova tra qualche minuto.' : 'Credenziali non valide.') }
+    } catch (errorValue) { setError(authErrorMessage(errorValue, mode)) }
   }
   return <main className="manager-login"><section><div className="manager-login-mark">Or<span>diva</span></div><div className="manager-login-icon"><ShieldCheck /></div><h1>{mode === 'forgot' ? 'Recupera accesso' : 'Accesso Manager'}</h1><p>{sent ? 'Se l’indirizzo è autorizzato riceverai un link sicuro per impostare una nuova password.' : mode === 'forgot' ? 'Inserisci l’email amministratore. Non comunicheremo mai se un altro account esiste.' : 'Area privata protetta da credenziali e ruolo amministratore.'}</p>{sent ? <button onClick={() => { setSent(false); setMode('login') }}>Torna all’accesso</button> : <form onSubmit={submit}><label>Email amministratore<input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>{mode === 'login' ? <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} minLength="8" required /></label> : null}<button>{mode === 'forgot' ? 'Invia link di recupero' : 'Accedi'}</button></form>}{error ? <div className="manager-error">{error}</div> : null}{!sent ? <button className="manager-text-button" onClick={() => { setMode(mode === 'login' ? 'forgot' : 'login'); setError('') }}>{mode === 'login' ? 'Password dimenticata?' : 'Torna al login'}</button> : null}<a href="/">Torna al gestionale</a></section></main>
 }

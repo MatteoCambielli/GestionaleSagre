@@ -47,3 +47,8 @@ Environment variables richieste:
 - `VITE_SUPABASE_PUBLISHABLE_KEY`, opzionale e mantenuta per compatibilità con installazioni esistenti
 - `VITE_STRIPE_PUBLISHABLE_KEY`, solo se Stripe è usato nel frontend
 - `STRIPE_SECRET_KEY`, solo per funzioni/backend Stripe lato server e mai nel frontend
+
+In Supabase Auth aggiungi tra gli URL consentiti anche il dominio Vercel dell'app, ad esempio:
+
+- `https://tuo-dominio.vercel.app`
+- `https://tuo-dominio.vercel.app/manager`

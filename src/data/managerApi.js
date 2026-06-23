@@ -1,7 +1,7 @@
 import { supabaseClient } from './sagraApi.js'
 
 const requireClient = () => {
-  if (!supabaseClient) throw new Error('Supabase non è configurato')
+  if (!supabaseClient) throw new Error('Supabase non è configurato: verifica VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY su Vercel.')
   return supabaseClient
 }
 
@@ -34,7 +34,7 @@ export const managerApi = {
   },
   async sendPasswordRecovery(email) {
     const { error } = await requireClient().auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/manager?reset=1`,
+      redirectTo: `${window.location.origin}/manager`,
     })
     if (error) throw error
   },
